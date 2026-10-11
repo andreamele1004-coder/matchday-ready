@@ -67,6 +67,28 @@ h2{font-size:1.5rem;font-weight:700;text-transform:uppercase}
 .tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .tab:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .fields{display:grid;gap:16px}
+.picker{display:grid;gap:12px}
+.mtabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.mtab{font:inherit;font-weight:600;font-size:.92rem;white-space:nowrap;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.mtab[aria-pressed="true"]{background:var(--pitch);color:var(--pitch-ink);border-color:var(--pitch)}
+.mtab span{display:inline-block;min-width:1.4em;font-size:.78rem;background:var(--accent);color:#1b1505;border-radius:999px;padding:0 5px;margin-left:2px}
+.sel{display:grid;gap:6px}
+.selrow{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px}
+.selrow>div:first-child{min-width:0}
+.selrow b{display:block;font-weight:600}
+.selrow small,.chip small{display:block;color:var(--muted);font-size:.78rem;font-weight:400}
+.step{display:flex;align-items:center;gap:6px}
+.step button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:1.2rem;cursor:pointer}
+.step output{min-width:2.2ch;text-align:center;font-family:var(--display);font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums}
+.cat summary{cursor:pointer;font-family:var(--display);font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:6px 0}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding-top:6px}
+.chip{font:inherit;font-size:.9rem;text-align:left;border:1px dashed var(--line);background:transparent;color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer}
+.chip:active{background:var(--chalk)}
+.btn.small{font-size:.85rem;padding:6px 10px}
+.infoline{font-size:.95rem;color:var(--muted);background:var(--chalk);border-radius:8px;padding:8px 12px}
+.infoline b{color:var(--ink);font-family:var(--display);font-size:1.1rem}
+input[type=time]{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+.fields textarea{min-height:0;font:inherit;font-size:.95rem}
 .field{display:grid;gap:6px}
 .field label{font-weight:600}
 .field .hint{font-size:.85rem;color:var(--muted)}
@@ -124,17 +146,25 @@ textarea{width:100%;min-height:120px;font:12px/1.4 ui-monospace,monospace;color:
 
   <section class="panel" aria-labelledby="ci">
     <div>
-      <div class="eyebrow">Check-in di oggi</div>
-      <h2 id="ci">Come stai arrivando alla partita?</h2>
+      <div class="eyebrow">Check-in serale</div>
+      <h2 id="ci">Com'è andata la giornata?</h2>
     </div>
     <div class="inline" style="flex-wrap:wrap">
       <div class="field" style="flex:1;min-width:150px">
-        <label for="today">Data</label>
+        <label for="today">Giornata da registrare</label>
         <input type="date" id="today">
       </div>
       <div class="field" style="flex:1;min-width:150px">
         <label for="matchDate">Data partita</label>
         <input type="date" id="matchDate">
+      </div>
+      <div class="field" style="flex:1;min-width:110px">
+        <label for="kickoff">Orario partita</label>
+        <input type="time" id="kickoff">
+      </div>
+      <div class="field" style="flex:1;min-width:120px">
+        <label for="heat">Meteo previsto</label>
+        <select id="heat"><option value="0">Fresco</option><option value="1">Mite</option><option value="2">Caldo (oltre 25°)</option></select>
       </div>
     </div>
     <div class="tabs" role="tablist" id="tabs"></div>
@@ -149,7 +179,7 @@ textarea{width:100%;min-height:120px;font:12px/1.4 ui-monospace,monospace;color:
   <section style="display:grid;gap:12px">
     <div>
       <div class="eyebrow">Per salire di percentuale</div>
-      <h2>Cosa fare oggi</h2>
+      <h2>Cosa fare da stasera</h2>
     </div>
     <ul class="tips" id="tips"></ul>
     <div class="plan" id="plan"></div>
@@ -199,32 +229,51 @@ textarea{width:100%;min-height:120px;font:12px/1.4 ui-monospace,monospace;color:
 <script>
 const SCHEMA = {
   sonno:[
-    {id:'sleepH',label:'Ore dormite stanotte',type:'range',min:3,max:11,step:.5,unit:'h',def:6.5},
-    {id:'sleepQ',label:'Qualità del sonno',type:'seg',opts:['Pessima','Scarsa','Ok','Buona','Ottima'],def:2},
-    {id:'bedtime',label:'Orario in cui sei andato a letto',type:'seg',opts:['Prima 23','23–24','24–1','Dopo l\'1'],def:2}
+    {id:'bedT',label:'A che ora sei andato a letto?',type:'time',def:'23:30'},
+    {id:'wakeT',label:'A che ora ti sei svegliato?',type:'time',def:'06:45'},
+    {id:'sleepInfo',type:'info'},
+    {id:'wakeups',label:'Risvegli durante la notte',type:'seg',opts:['Nessuno','1–2','3 o più'],def:1},
+    {id:'sleepQ',label:'Come ti sei sentito al risveglio?',type:'seg',opts:['Distrutto','Stanco','Ok','Riposato','Al top'],def:2},
+    {id:'nap',label:'Riposino durante il giorno',type:'seg',opts:['No','Meno di 30 min','30–60 min','Più di 60 min'],def:0},
+    {id:'screens',label:'Telefono o TV a letto prima di dormire',type:'seg',opts:['No','Meno di 30 min','Più di 30 min'],def:1}
   ],
   alimentazione:[
-    {id:'meals',label:'Pasti regolari (colazione, pranzo, cena)',type:'seg',opts:['Saltati','1 su 3','2 su 3','Tutti'],def:2},
-    {id:'carbs',label:'Carboidrati (pasta, riso, pane, patate)',type:'seg',opts:['Pochi','Normali','Abbondanti'],def:1},
-    {id:'protein',label:'Proteine in almeno 2 pasti',type:'seg',opts:['No','Sì'],def:1},
-    {id:'water',label:'Acqua bevuta',type:'range',min:0,max:4,step:.25,unit:'L',def:1.5},
-    {id:'alcohol',label:'Alcol nelle ultime 24 ore',type:'seg',opts:['No','1 bicchiere','2+'],def:0},
-    {id:'junk',label:'Cibo pesante o fritto',type:'seg',opts:['No','Un po\'','Molto'],def:1}
+    {id:'weight',label:'Il tuo peso (kg), serve per calcolare le quantità',type:'number',min:40,max:150,def:75},
+    {id:'food',type:'picker',def:null},
+    {id:'foodInfo',type:'info'},
+    {id:'dinnerT',label:'A che ora hai cenato?',type:'time',def:'20:30'},
+    {id:'lateCaf',label:'Caffè, tè o energy drink dopo le 16',type:'seg',opts:['No','Sì'],def:0}
   ],
   allenamento:[
-    {id:'trainY',label:'Allenamento di ieri',type:'seg',opts:['Riposo','Leggero','Medio','Intenso'],def:2},
-    {id:'trainT',label:'Allenamento previsto oggi',type:'seg',opts:['Riposo','Leggero','Medio','Intenso'],def:1},
+    {id:'trainKind',label:'Cosa hai fatto oggi?',type:'seg',opts:['Riposo','Calcio · allenamento','Calcio · partita','Palestra','Corsa','Bici / nuoto','Altro'],def:1},
+    {id:'gymFocus',label:'Cosa hai allenato in palestra?',type:'seg',opts:['Gambe','Parte alta','Total body','Core / mobilità'],def:0,showIf:s=>s.trainKind===3},
+    {id:'runType',label:'Che tipo di corsa?',type:'seg',opts:['Corsa lenta','Ripetute / scatti','Corsa lunga'],def:0,showIf:s=>s.trainKind===4},
+    {id:'runKm',label:'Chilometri',type:'number',min:0,max:50,def:0,showIf:s=>s.trainKind===4},
+    {id:'trainMin',label:'Durata (minuti)',type:'number',min:0,max:240,def:75,showIf:s=>s.trainKind>0},
+    {id:'trainRPE',label:'Quanto è stato faticoso? (1 = facilissimo, 10 = massimo)',type:'range',min:1,max:10,step:1,unit:'/10',def:5,showIf:s=>s.trainKind>0},
+    {id:'trainInfo',type:'info',showIf:s=>s.trainKind>0},
+    {id:'trainNote',label:'Cosa hai fatto nel dettaglio',type:'text',ph:'es. riscaldamento, possesso palla, partitella, 6 scatti da 30 m / squat 4x8, affondi',showIf:s=>s.trainKind>0},
+    {id:'trainY',label:'Allenamento di ieri',type:'seg',opts:['Riposo','Leggero','Medio','Intenso'],def:0},
     {id:'sore',label:'Indolenzimento muscolare (gambe)',type:'seg',opts:['Nessuno','Lieve','Medio','Forte'],def:1}
   ],
   lavoro:[
-    {id:'workH',label:'Ore di lavoro oggi',type:'range',min:0,max:14,step:.5,unit:'h',def:8.5},
-    {id:'workType',label:'Tipo di lavoro',type:'seg',opts:['Seduto','Misto','In piedi / magazzino','Fisico pesante'],def:1},
-    {id:'workEnd',label:'Fine turno',type:'seg',opts:['Entro 17','17–19','19–21','Dopo 21'],def:1},
+    {id:'workOff',label:'Oggi',type:'seg',opts:['Ho lavorato','Giorno libero'],def:0},
+    {id:'workStart',label:'Inizio lavoro',type:'time',def:'08:30',showIf:s=>!s.workOff},
+    {id:'workStop',label:'Fine lavoro',type:'time',def:'17:30',showIf:s=>!s.workOff},
+    {id:'workPause',label:'Pausa (minuti)',type:'number',min:0,max:180,def:60,showIf:s=>!s.workOff},
+    {id:'workInfo',type:'info',showIf:s=>!s.workOff},
+    {id:'workType',label:'Tipo di lavoro',type:'seg',opts:['Seduto','Misto','In piedi / magazzino','Fisico pesante'],def:1,showIf:s=>!s.workOff},
+    {id:'commute',label:'Viaggio casa-lavoro, andata e ritorno',type:'seg',opts:['Fino a 30 min','30–60 min','60–90 min','Più di 90 min'],def:1,showIf:s=>!s.workOff},
     {id:'stress',label:'Stress percepito',type:'seg',opts:['Basso','Medio','Alto','Molto alto'],def:1}
   ],
   benessere:[
     {id:'energy',label:'Energia generale',type:'seg',opts:['Scarico','Bassa','Normale','Buona','Carico'],def:2},
-    {id:'mood',label:'Umore e motivazione',type:'seg',opts:['Basso','Medio','Buono','Alto'],def:2}
+    {id:'mood',label:'Umore e motivazione',type:'seg',opts:['Basso','Medio','Buono','Alto'],def:2},
+    {id:'legs',label:'Sensazione delle gambe',type:'seg',opts:['Pesanti','Normali','Leggere'],def:1},
+    {id:'rhr',label:'Battito a riposo al risveglio (bpm) · dallo smartwatch o contando 60 secondi, 0 se non lo sai',type:'number',min:0,max:120,def:0},
+    {id:'rhrInfo',type:'info',showIf:s=>+s.rhr>0},
+    {id:'steps',label:'Passi della giornata',type:'seg',opts:['Meno di 5.000','5–10.000','10–15.000','Più di 15.000'],def:1},
+    {id:'mobility',label:'Stretching, mobilità o foam roller',type:'seg',opts:['No','10 minuti','20 minuti o più'],def:0}
   ],
   salute:[
     {id:'injury',label:'Infortunio o fastidio fisico',type:'seg',opts:['Nessuno','Fastidio lieve','Moderato (limita la corsa)','Grave / fermo'],def:0},
@@ -243,10 +292,139 @@ const clamp=(v,a=0,b=100)=>Math.max(a,Math.min(b,v));
 let state={}, tab='sonno';
 
 function iso(d){return d.toISOString().slice(0,10)}
+const tmin=t=>{if(!t)return null;const [h,m]=t.split(':').map(Number);return h*60+m};
+const hhmm=m=>{m=((Math.round(m)%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')};
+const fh=h=>String(Math.round(h*4)/4).replace('.',',');
+function derive(src){
+  const s=Object.assign({},src);
+  // sonno da orari
+  const b=tmin(s.bedT), w=tmin(s.wakeT);
+  s.sleepH = b==null||w==null ? 7 : ((w-b+1440)%1440)/60 - [0,.25,.6][s.wakeups||0];
+  s.sleepH = Math.max(0,Math.round(s.sleepH*4)/4);
+  const bh = b==null?23:b/60; // 18-23 => prima delle 23
+  s.bedtime = bh>=18&&bh<23?0 : bh>=23?1 : bh<1?2 : 3;
+  // lavoro da orari
+  if(s.workOff){s.workH=0;s.workEnd=0}
+  else{const a=tmin(s.workStart), e=tmin(s.workStop);
+    s.workH = a==null||e==null?8:Math.max(0,((e-a+1440)%1440 - (+s.workPause||0))/60);
+    const eh=e==null?17:e/60; s.workEnd = eh<=17?0: eh<=19?1: eh<=21?2:3;}
+  // carico allenamento (sRPE = minuti x fatica)
+  s.load = s.trainKind>0 ? (+s.trainMin||0)*(+s.trainRPE||0) : 0;
+  const lf = s.trainKind>0 ? ((LEGF[s.trainKind]||[1])[s.trainKind===3?(s.gymFocus||0):s.trainKind===4?(s.runType||0):0] ?? 1) : 0;
+  s.legLoad = Math.round(s.load*lf);
+  s.trainT = s.legLoad===0?0 : s.legLoad<=200?1 : s.legLoad<=420?2 : 3;
+  // alimentazione e bevande dalle scelte
+  const fd=parseDay(s); s.fd=fd; const kg=+s.weight||75;
+  s.alcN=Math.round(fd.alc*10)/10; s.alcohol=fd.alc<.5?0:fd.alc<1.5?1:2;
+  s.carbG=Math.round(fd.c); s.protG=Math.round(fd.p); s.water=Math.round(fd.water/250)/4;
+  s.meals=fd.meals; s.fruitVeg=fd.fv<1?0:fd.fv<3?1:2; s.junk=fd.junk<1?0:fd.junk<2?1:2;
+  s.coffee=Math.min(3,Math.round(fd.coffee)); s.protein=s.protG>=1.4*kg?1:0;
+  const dt=tmin(s.dinnerT); s.lateDinner = dt!=null&&dt>=21*60+45&&dt<23*60+59?1:0;
+  return s;
+}
+/* ---- Elenco alimenti e bevande: valori medi indicativi PER PORZIONE ----
+   c = carboidrati g, p = proteine g, fv = porzioni di frutta/verdura, junk = cibo pesante,
+   alc = unità alcoliche, w = ml di liquidi, cof = caffeina, st = passo del +/- */
+const FOODS=[
+ ['Carboidrati',[
+  ['pasta','Pasta','100 g crudo',{c:71,p:12,st:.5}],['pastaint','Pasta integrale','100 g crudo',{c:65,p:13,st:.5}],
+  ['riso','Riso','90 g crudo',{c:70,p:6,st:.5}],['gnocchi','Gnocchi','200 g',{c:66,p:8,st:.5}],
+  ['farro','Cous cous / farro / orzo','80 g crudo',{c:56,p:10,st:.5}],['patate','Patate','200 g',{c:34,p:4,st:.5}],
+  ['pane','Pane','1 fetta (50 g)',{c:25,p:4.5}],['panino','Panino','1 (80 g)',{c:40,p:7}],
+  ['piadina','Piadina','1',{c:55,p:8}],['focaccia','Focaccia','100 g',{c:50,p:8,st:.5}],
+  ['pizza','Pizza','1 intera',{c:110,p:30,junk:1,st:.5}],['polenta','Polenta','1 piatto',{c:38,p:5,st:.5}],
+  ['fette','Fette biscottate','3 fette',{c:22,p:3}],['gallette','Gallette di riso','3',{c:22,p:2}],
+  ['biscotti','Biscotti','4',{c:22,p:2.5}],['cereali','Cereali / muesli','40 g',{c:28,p:4}],
+  ['avena','Fiocchi d\'avena','50 g',{c:30,p:6.5}],['marmellata','Marmellata / miele','1 cucchiaio',{c:13}]]],
+ ['Proteine',[
+  ['pollo','Pollo / tacchino','150 g',{p:35,st:.5}],['manzo','Manzo / vitello','150 g',{p:39,st:.5}],
+  ['maiale','Maiale','150 g',{p:38,st:.5}],['hamburger','Hamburger','1 (150 g)',{p:30}],
+  ['salsiccia','Salsiccia','1 (100 g)',{p:15,junk:1}],['prosciutto','Prosciutto crudo / cotto','60 g',{p:15}],
+  ['bresaola','Bresaola','60 g',{p:19}],['salame','Salame / mortadella','50 g',{p:11,junk:1}],
+  ['pesce','Pesce bianco','150 g',{p:30,st:.5}],['salmone','Salmone','150 g',{p:30,st:.5}],
+  ['tonno','Tonno in scatola','1 scatoletta',{p:20}],['gamberi','Gamberi / calamari','150 g',{p:27,st:.5}],
+  ['uova','Uova','1 uovo',{p:6.5,c:.5}],['legumi','Legumi (ceci, lenticchie, fagioli)','200 g cotti',{c:40,p:16,st:.5}]]],
+ ['Latte e derivati',[
+  ['latte','Latte','1 tazza',{c:10,p:6.5,w:200}],['yogurt','Yogurt','1 vasetto',{c:6,p:5}],
+  ['greco','Yogurt greco','170 g',{c:6,p:15}],['mozzarella','Mozzarella','125 g',{c:1,p:23}],
+  ['parmigiano','Parmigiano / grana','30 g',{p:10}],['formaggio','Formaggio','60 g',{p:15}],
+  ['ricotta','Ricotta','100 g',{c:3,p:11}],['whey','Proteine in polvere','1 dose',{c:2,p:24}]]],
+ ['Frutta e verdura',[
+  ['banana','Banana','1',{c:27,p:1.3,fv:1}],['mela','Mela / pera','1',{c:20,fv:1}],
+  ['arancia','Arancia / mandarini','1 porzione',{c:15,fv:1}],['kiwi','Kiwi','2',{c:15,fv:1}],
+  ['frutti','Frutti di bosco / fragole','150 g',{c:12,fv:1}],['secca','Frutta secca','30 g',{c:4,p:6}],
+  ['insalata','Insalata','1 porzione',{c:3,p:1,fv:1}],['verdure','Verdure cotte','200 g',{c:8,p:4,fv:1}],
+  ['pomodori','Pomodori','150 g',{c:5,p:1,fv:1}],['minestrone','Minestrone / passato','1 piatto',{c:20,p:6,fv:1}]]],
+ ['Dolci e snack',[
+  ['cornetto','Cornetto / brioche','1',{c:40,p:5,junk:1}],['merendina','Merendina','1',{c:30,p:3,junk:1}],
+  ['cioccolato','Cioccolato','30 g',{c:17,p:2,junk:1}],['nutella','Crema spalmabile','1 cucchiaio',{c:11,p:1,junk:1}],
+  ['gelato','Gelato','1 coppetta',{c:25,p:4,junk:1}],['torta','Torta / dolce','1 fetta',{c:45,p:5,junk:1}],
+  ['patatine','Patatine in busta','1 busta',{c:20,p:2,junk:1}],['barretta','Barretta energetica','1',{c:25,p:6}],
+  ['cracker','Cracker','1 pacchetto',{c:18,p:2.5}]]],
+ ['Fritti e fast food',[
+  ['frittura','Frittura','1 porzione',{c:25,p:20,junk:1}],['fritte','Patatine fritte','1 porzione',{c:45,p:4,junk:1}],
+  ['kebab','Kebab','1',{c:60,p:30,junk:1}],['burger','Panino fast food','1',{c:45,p:25,junk:1}],
+  ['cotoletta','Cotoletta','1',{c:20,p:25,junk:1}]]],
+ ['Acqua e bevande',[
+  ['acqua1','Acqua','1 bicchiere (200 ml)',{w:200}],['acqua5','Acqua','1 bottiglietta (500 ml)',{w:500}],
+  ['acqua15','Acqua','1 bottiglia (1,5 L)',{w:1500}],['sali','Sali minerali / sport drink','500 ml',{c:30,w:500}],
+  ['te','Tè / tisana','1 tazza',{w:250}],['succo','Succo / spremuta','1 bicchiere',{c:22,w:200}],
+  ['bibita','Bibita gassata','1 lattina',{c:35,w:330,junk:1}]]],
+ ['Caffè',[
+  ['caffe','Caffè','1',{cof:1}],['cappuccino','Cappuccino','1',{c:9,p:6,w:150,cof:1}],
+  ['energy','Energy drink','1 lattina',{c:27,w:250,cof:1,junk:1}]]],
+ ['Alcol',[
+  ['birra','Birra piccola','33 cl',{c:12,w:330,alc:1}],['birram','Birra media','40 cl',{c:15,w:400,alc:1.3}],
+  ['vino','Vino','1 calice',{c:1,alc:1}],['prosecco','Prosecco / spumante','1 calice',{c:2,alc:1}],
+  ['spritz','Spritz','1',{c:15,alc:1.2}],['cocktail','Cocktail','1',{c:20,alc:1.5}],
+  ['shot','Superalcolico / shot','1',{alc:1}],['amaro','Amaro / digestivo','1',{c:10,alc:1}]]]
+];
+const FOODMAP={}; FOODS.forEach(([cat,items])=>items.forEach(([id,n,por,v])=>FOODMAP[id]={id,n,por,cat,...v}));
+const MEALS=[['colazione','Colazione'],['pranzo','Pranzo'],['cena','Cena'],['spuntini','Spuntini'],['bevande','Bevande']];
+const DRINKCATS=['Acqua e bevande','Caffè','Alcol'];
+function parseDay(s){
+  const tot={c:0,p:0,fv:0,junk:0,alc:0,water:0,coffee:0,any:false,meals:0};
+  const food=s.food||{};
+  MEALS.forEach(([m])=>{const sel=food[m]||{}; let n=0;
+    Object.entries(sel).forEach(([id,q])=>{const f=FOODMAP[id]; if(!f||!q) return; n++;
+      tot.c+=(f.c||0)*q; tot.p+=(f.p||0)*q; tot.fv+=(f.fv||0)*q; tot.junk+=(f.junk||0)*q; tot.alc+=(f.alc||0)*q; tot.water+=(f.w||0)*q; tot.coffee+=(f.cof||0)*q;});
+    if(n){tot.any=true; if(['colazione','pranzo','cena'].includes(m)) tot.meals++;}});
+  return tot;
+}
+function foodList(s,m){return Object.entries((s.food||{})[m]||{}).filter(([id,q])=>q>0&&FOODMAP[id]).map(([id,q])=>`${FOODMAP[id].n} ${FOODMAP[id].por} x${String(q).replace('.',',')}`).join(' | ')}
+const EXAMPLE_FOOD={colazione:{fette:1,marmellata:1,caffe:1,yogurt:1},pranzo:{pasta:1,pollo:1,insalata:1},cena:{riso:1,salmone:1,verdure:1},spuntini:{banana:1},bevande:{acqua5:3,caffe:1}};
+/* obiettivi indicativi per calciatori: carboidrati g/kg in base ai giorni alla partita, proteine 1,6 g/kg */
+const carbPerKg=md=> md===0||md===1?5 : md===2||md===-1?4.5 : 4;
+function waterTarget(s,md){
+  const kg=+s.weight||75;
+  let t=kg*.03 + (!s.workOff&&s.workType>=2?.5:0) + (s.trainKind>0?(+s.trainMin||0)/60*.5:0) + (s.alcN||0)*.2;
+  return Math.min(4,Math.round(t*4)/4);
+}
+const LEGF={1:[1],2:[1.2],3:[1.3,.3,.9,.2],4:[.8,1.2,1],5:[.6],6:[.7]};
+
+const LOADN=['riposo','leggero','medio','intenso'];
+function rhrBase(d){
+  const h=store('mr-history')||{}, v=[];
+  for(let i=1;i<=7;i++){const x=new Date(d.today); x.setDate(x.getDate()-i); const e=entry(h[iso(x)]); if(+e.rhr>0) v.push(+e.rhr);}
+  return v.length>=3?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null;
+}
+function info(id,d){
+  if(id==='sleepInfo') return `Hai dormito circa <b>${fh(d.sleepH)} ore</b>`+(d.sleepH<7.5?' · sotto l\'obiettivo di 7,5–9':d.sleepH<=9.5?' · nell\'obiettivo':'');
+  if(id==='trainInfo') return `Carico della seduta: <b>${d.load} UA</b> (minuti × fatica) · impatto sulle gambe: <b>${LOADN[d.trainT]}</b>`+(d.trainKind===4&&+d.runKm>0&&+d.trainMin>0?` · ritmo medio ${Math.floor(d.trainMin/d.runKm)}:${String(Math.round(d.trainMin/d.runKm%1*60)).padStart(2,'0')}/km`:'');
+  if(id==='foodInfo'){
+    const f=d.fd, kg=+d.weight||75, md=daysToMatch();
+    if(!f||!f.any) return 'Scegli quello che hai mangiato e bevuto: tocca un alimento per aggiungerlo, poi regola le porzioni con + e −.';
+    const tc=Math.round(carbPerKg(md)*kg), tp=Math.round(1.6*kg);
+    return `Totale di oggi: carboidrati <b>~${d.carbG} g</b> (obiettivo ${tc}) · proteine <b>~${d.protG} g</b> (obiettivo ${tp}) · frutta e verdura <b>${Math.round(f.fv)}</b> porzioni · liquidi <b>${fh(d.water)} L</b> (obiettivo ${fh(waterTarget(d,md))})`+(d.alcN?` · alcol <b>${String(d.alcN).replace('.',',')}</b> unità`:'')+(f.coffee?` · caffè <b>${Math.round(f.coffee)}</b>`:'');
+  }
+  if(id==='rhrInfo'){const b=rhrBase(d); return b?`La tua media degli ultimi giorni è <b>${b} bpm</b>`+(d.rhr-b>=5?` · oggi <b>+${d.rhr-b}</b>: segnale di fatica`:' · nella norma'):'Servono almeno 3 giorni salvati con il battito per avere la tua media.'}
+  if(id==='workInfo') return `Ore di lavoro effettive: <b>${fh(d.workH)} h</b>, fine turno alle ${d.workStop||'–'}`;
+  return '';
+}
 function defaults(){
-  const s={}; Object.values(SCHEMA).flat().forEach(f=>s[f.id]=f.def);
-  const t=new Date(); const m=new Date(t); m.setDate(t.getDate()+((6-t.getDay()+7)%7||7));
-  s.today=iso(t); s.matchDate=iso(m); return s;
+  const s={}; Object.values(SCHEMA).flat().forEach(f=>s[f.id]=f.def&&typeof f.def==='object'?JSON.parse(JSON.stringify(f.def)):f.def);
+  const t=new Date(); const m=new Date(t); m.setDate(t.getDate()+((1-t.getDay()+7)%7||7)); // prossimo lunedì
+  s.food=JSON.parse(JSON.stringify(EXAMPLE_FOOD)); s.today=iso(t); s.matchDate=iso(m); s.kickoff='20:30'; s.heat=1; return s;
 }
 function store(k,v){try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k,JSON.stringify(v)) }catch(e){return null}}
 
@@ -256,29 +434,40 @@ function daysToMatch(){
 }
 
 /* ---- Modello ---- */
-function compute(s){
+function compute(src){
+  const s=derive(src);
   const md=daysToMatch();
   // Sonno
-  let h=s.sleepH, hs = h>=7.5&&h<=9.5?100 : h<7.5? 100-(7.5-h)*22 : 100-(h-9.5)*10;
-  let sonno = .6*clamp(hs) + .3*(s.sleepQ/4*100) + .1*[100,85,60,35][s.bedtime];
+  let h=s.sleepH+[0,.25,.5,.5][s.nap||0], hs = h>=7.5&&h<=9.5?100 : h<7.5? 100-(7.5-h)*22 : 100-(h-9.5)*10;
+  let sonno = .6*clamp(hs) + .3*(s.sleepQ/4*100) + .1*[100,85,60,35][s.bedtime] - [0,3,8][s.screens||0];
   // Alimentazione
-  const waterTarget = 2.5 + (s.workType>=2?.5:0);
-  let carbsNeed = md<=2&&md>=0 ? [30,75,100][s.carbs] : [55,100,85][s.carbs];
-  let alim = .25*[0,40,75,100][s.meals] + .25*carbsNeed + .15*(s.protein?100:40)
-           + .25*clamp(s.water/waterTarget*100) + .10*[100,70,40][s.junk];
-  alim -= [0,8,25][s.alcohol];
+  const wT = waterTarget(s,md), kg=+s.weight||75;
+  let carbsNeed, protPart;
+  if(s.carbG!=null){
+    const ratio=s.carbG/(carbPerKg(md)*kg);
+    carbsNeed = md>=0&&md<=2 ? clamp(ratio*100) : ratio<.8? ratio/.8*100 : ratio<=1.4?100 : clamp(100-(ratio-1.4)*60);
+    protPart = clamp(s.protG/(1.4*kg)*100);
+    s.carbs = ratio<.8?0 : ratio<1.1?1 : 2;
+  } else { carbsNeed = md<=2&&md>=0 ? [30,75,100][s.carbs] : [55,100,85][s.carbs]; protPart = s.protein?100:40; }
+  let alim = .25*[0,40,75,100][s.meals??3] + .25*carbsNeed + .15*protPart
+           + .25*clamp(s.water/wT*100) + .10*[100,70,40][s.junk];
+  alim += [-6,0,4][s.fruitVeg??1] - (s.coffee===3?4:0);
+  alim -= Math.min(35, (s.alcN||0)*10) + (s.lateDinner?3:0);
+  // alcol: peggiora anche il recupero notturno
+  const alcRec = Math.min(20,(s.alcN||0)*6);
   // Recupero / allenamento
   const loadY=[0,1,2,3][s.trainY], loadT=[0,1,2,3][s.trainT];
   let rec = [100,82,55,25][s.sore];
   let okToday = md===0?100 : md===1? [100,100,60,20][loadT] : md===2? [95,100,85,50][loadT] : 100;
   let carry = md<=1&&md>=0 ? [100,95,75,45][loadY] : [100,100,92,80][loadY];
-  rec = .5*rec + .25*okToday + .25*carry;
+  rec = .5*rec + .25*okToday + .25*carry - alcRec + [0,3,6][s.mobility||0] + [-8,0,4][s.legs??1] - [0,0,3,7][s.steps||0];
   rec -= [0,8,25,40][s.injury||0];
   // Lavoro
-  let lavoro = 100 - clamp((s.workH-8)*7,0,40) - [0,5,15,28][s.workType] - [0,4,12,22][s.workEnd] - [0,8,20,32][s.stress];
+  let lavoro = 100 - clamp((s.workH-8)*7,0,40) - (s.workOff?0:[0,5,15,28][s.workType]) - [0,4,12,22][s.workEnd] - (s.workOff?0:[0,2,6,10][s.commute??1]) - [0,8,20,32][s.stress];
   // Benessere
   let ben = .55*(s.energy/4*100) + .45*(s.mood/3*100);
   ben -= [0,8,30,25][s.illness||0];
+  const rb=+s.rhr>0?rhrBase(s):null; if(rb){const df=s.rhr-rb; ben -= df>=8?25: df>=5?12: df>=3?5:0;}
   // Salute: punteggio mostrato a parte e "tetto" massimo alla prontezza
   let sal = 100 - [0,15,45,80][s.injury||0] - [0,70,50,25,5][s.phase||0] - [0,15,70,50][s.illness||0] - (s.meds?10:0) - (s.cleared===2?30:0);
   let cap=100, capWhy='';
@@ -290,7 +479,7 @@ function compute(s){
   const parts={sonno:clamp(sonno),alimentazione:clamp(alim),allenamento:clamp(rec),lavoro:clamp(lavoro),benessere:clamp(ben),salute:clamp(sal)};
   let total = AREAS.reduce((a,x)=>a+parts[x.k]*x.w,0);
   total=Math.min(total,cap);
-  return {parts,total:Math.round(total),md,cap,capWhy};
+  return {parts,total:Math.round(total),md,cap,capWhy,carbsCat:s.carbs};
 }
 
 function verdict(t,r){
@@ -305,7 +494,8 @@ function verdict(t,r){
 /* ---- Consigli ---- */
 function tips(s,r){
   const out=[], md=r.md, p=r.parts;
-  const add=(pr,t,d,area)=>out.push({pr,t,d,h:area==='salute'?0:1,gain:area?Math.round((100-p[area])*AREAS.find(a=>a.k===area).w*.6):0});
+  const top=personal().top;
+  const add=(pr,t,d,area)=>out.push({pr,t,d,h:area==='salute'?0:1,gain:area?Math.round((100-p[area])*AREAS.find(a=>a.k===area).w*.6*(area===top?1.5:1)):0});
   // Salute e infortuni
   const zone=['Caviglia','Ginocchio','Coscia / flessori','Polpaccio','Inguine / adduttori','Schiena','Altro'][s.injZone||0];
   const zoneTip={
@@ -328,17 +518,26 @@ function tips(s,r){
   if(s.illness===2) add(1,'Febbre: niente sforzo','Con febbre o influenza non si gioca. In genere si riprende con calma dopo almeno un giorno intero senza febbre.','salute');
   if(s.illness===3) add(1,'Problemi intestinali','Bevi spesso, anche acqua con sali minerali, e mangia cibi semplici. Gioca solo se i sintomi sono passati e stai mangiando normalmente.','salute');
   if(s.illness===1) add(2,'Raffreddore leggero','Senza febbre puoi allenarti in modo leggero, ascoltando il corpo. Se compaiono febbre o dolori muscolari, fermati.','salute');
+  if(s.lateCaf) add(2,'Niente caffeina dopo le 16','La caffeina resta in circolo per diverse ore e rende il sonno più leggero, anche se ti addormenti.','sonno');
+  if((s.screens||0)===2) add(2,'Telefono lontano dal letto','Più di 30 minuti di schermo a letto ritardano il sonno. Prova a lasciarlo in carica fuori dalla camera.','sonno');
+  if(s.lateDinner) add(2,'Cena prima','Hai cenato tardi: la digestione disturba il sonno. Quando puoi, cena entro le 21.','alimentazione');
+  {const rb=+s.rhr>0?rhrBase(s):null; if(rb&&s.rhr-rb>=5) add(1,'Battito a riposo alto',`Stamattina ${s.rhr} bpm contro una media di ${rb}: spesso è segno di fatica accumulata, poco sonno o malattia in arrivo. Domani tieni l'allenamento leggero.`,'benessere');}
+  if(s.sore>=1&&!s.mobility) add(3,'10 minuti di mobilità stasera','Stretching dolce o foam roller su polpacci, quadricipiti e flessori aiutano le gambe a recuperare.','allenamento');
+  if((s.steps||0)===3&&md<=2&&!s.workOff) add(2,'Tante ore in piedi','Più di 15.000 passi a ridosso della partita stancano le gambe: stasera gambe in alto per 10–15 minuti.','lavoro');
+  if(s.legs===0&&md<=2) add(2,'Gambe pesanti','Recupero attivo leggero, idratazione e sonno: niente lavoro intenso fino alla partita.','allenamento');
   if(s.sleepH<7.5) add(1,`Punta a ${s.sleepH<6.5?'almeno 8':'7,5–9'} ore stanotte`,`Hai dormito ${String(s.sleepH).replace('.',',')} h. Vai a letto 30–45 minuti prima, schermi spenti, camera fresca e buia.`,'sonno');
   else if(s.sleepQ<2||s.bedtime>=2) add(2,'Migliora la qualità del sonno','Orari regolari, niente caffè dopo le 15 e cena non troppo tardi aiutano più delle ore extra.','sonno');
-  const wt=2.5+(s.workType>=2?.5:0);
-  if(s.water<wt) add(s.water<wt-1?1:2,`Bevi fino a ${String(wt).replace('.',',')} L`,`Ne mancano circa ${String(Math.round((wt-s.water)*4)/4).replace('.',',')}. Tieni una borraccia al lavoro e bevi a piccoli sorsi durante il turno.`,'alimentazione');
-  if(md>=0&&md<=2&&s.carbs<2) add(1,'Carica di carboidrati','A ridosso della partita alza la quota: pasta o riso a pranzo e cena, pane o fette con marmellata a colazione.','alimentazione');
+  const wt=waterTarget(s,md);
+  if(s.water<wt) add(s.water<wt-1?1:2,`Domani punta a ${String(wt).replace('.',',')} L di acqua`,`Oggi ne hai bevuti ${String(s.water).replace('.',',')}. Tieni una borraccia al lavoro e bevi a piccoli sorsi durante il turno.`,'alimentazione');
+  if(md>=0&&md<=2&&s.carbs<2) add(1,'Carica di carboidrati',s.carbG!=null?`Oggi circa ${s.carbG} g, a ridosso della partita servono circa ${Math.round(carbPerKg(md)*(+s.weight||75))} g. Il piano per domani ti dice come arrivarci.`:'A ridosso della partita alza la quota: pasta o riso a pranzo e cena, pane o fette con marmellata a colazione.','alimentazione');
   if(s.meals<3) add(2,'Non saltare i pasti','Tre pasti più uno spuntino (frutta, yogurt, frutta secca) tengono stabile l\'energia durante il lavoro.','alimentazione');
   if(!s.protein) add(2,'Proteine in due pasti','Carne bianca, pesce, uova, legumi o latticini aiutano a riparare i muscoli dopo gli allenamenti.','alimentazione');
-  if(s.alcohol) add(md<=2?1:2,'Niente alcol fino alla partita','Peggiora sonno, idratazione e recupero muscolare, soprattutto nelle 48 ore prima.','alimentazione');
+  if(s.alcN) add(md<=2?1:2,'Niente alcol fino alla partita',`Oggi ${String(s.alcN).replace('.',',')} unità di alcol: peggiorano sonno, idratazione e recupero muscolare, soprattutto nelle 48 ore prima. Stasera bevi un paio di bicchieri d'acqua in più.`,'alimentazione');
   if(s.junk===2&&md<=2) add(2,'Pasti più leggeri','Evita fritti e cibi pesanti nei giorni prima: digerisci meglio e dormi meglio.','alimentazione');
-  if(md===1&&s.trainT>=2) add(1,'Scarica l\'allenamento di oggi','Il giorno prima della partita bastano 30–40 minuti di attivazione: rapidità, palla, niente lavoro lattacido.','allenamento');
-  if(md===2&&s.trainT===3) add(2,'Riduci l\'intensità','A due giorni dalla partita meglio volume medio-basso e qualità tecnica.','allenamento');
+  if(s.trainKind===3&&s.gymFocus===0&&md>=0&&md<=2) add(1,'Gambe in palestra troppo vicino alla partita','Il lavoro di forza sulle gambe lascia affaticamento per 48–72 ore. Programmalo almeno 3 giorni prima della partita.','allenamento');
+  if(s.trainKind===4&&s.runType===1&&md===1) add(1,'Ripetute alla vigilia','Gli scatti ad alta intensità il giorno prima tolgono brillantezza: alla vigilia bastano pochi allunghi.','allenamento');
+  if(md===1&&s.trainT>=2) add(1,'Vigilia troppo carica','Oggi hai fatto un allenamento impegnativo a un giorno dalla partita: stasera cena con carboidrati, gambe in alto e a letto presto. La prossima volta alla vigilia bastano 30–40 minuti di attivazione.','allenamento');
+  if(md===2&&s.trainT===3) add(2,'Domani scarica','Oggi allenamento intenso a due giorni dalla partita: domani solo attivazione leggera o riposo.','allenamento');
   if(s.sore>=2) add(s.sore===3?1:2,'Recupero attivo per le gambe','15–20 minuti di bici o camminata leggera, mobilità e allungamenti dolci. Se possibile, gambe in alto la sera.','allenamento');
   if(s.workType>=2&&s.workH>=8) add(2,'Proteggi le gambe al lavoro','Scarpe ammortizzate, pause seduto quando puoi, e a fine turno 10 minuti di gambe in alto.','lavoro');
   if(s.workEnd>=2&&md<=1) add(2,'Organizza la serata','Finisci tardi: prepara cena e borsa il giorno prima così vai a letto in orario.','lavoro');
@@ -348,17 +547,112 @@ function tips(s,r){
   return out.sort((a,b)=>a.pr-b.pr||a.h-b.h||b.gain-a.gain).slice(0,7);
 }
 
-function plan(md){
-  const P={
-    0:['Matchday','Colazione o pranzo ricco di carboidrati 3–4 ore prima del fischio d\'inizio','Spuntino leggero (banana, fette biscottate) 60–90 minuti prima','Bevi 400–500 ml nelle 2 ore prima e a piccoli sorsi nell\'intervallo','Riscaldamento di 20 minuti: corsa, mobilità, scatti progressivi','Dopo la partita: acqua, carboidrati e proteine entro un\'ora'],
-    1:['MD-1 · Vigilia','Allenamento breve e brillante oppure riposo','Carboidrati a pranzo e a cena, cena leggera e non tardi','Niente alcol, a letto con 8+ ore davanti','Prepara la borsa stasera'],
-    2:['MD-2','Allenamento medio-leggero, tanta tecnica','Inizia ad alzare i carboidrati','Idratazione costante durante il lavoro'],
-    3:['MD-3','Ultimo giorno buono per un lavoro intenso','Pasti completi con proteine','Recupero attivo la sera se hai le gambe pesanti']
-  };
-  const k = md<0? null : md>3? 4 : md;
-  if(k===null) return '<h3>Partita già passata</h3><p class="note">Imposta la data della prossima partita.</p>';
-  const p = P[k]||[`MD-${md}`,'Giorno utile per costruire: allenamenti intensi ok se il recupero è buono','Dormi con regolarità: il sonno dei giorni prima conta quanto quello della vigilia','Alimentazione normale e completa'];
-  return `<div class="eyebrow">Piano di oggi</div><h3 style="font-size:1.3rem;text-transform:uppercase">${p[0]}</h3><ul>${p.slice(1).map(x=>`<li>${x}</li>`).join('')}</ul>`;
+function basePlan(mdToday,s){
+  const md=mdToday-1;
+  const tom=new Date(s.today); tom.setDate(tom.getDate()+1);
+  const giorni=['domenica','lunedì','martedì','mercoledì','giovedì','venerdì','sabato'];
+  const gname=giorni[tom.getDay()], weekend=tom.getDay()===0||tom.getDay()===6;
+  const K=tmin(s.kickoff)||tmin('20:30'), wake=tmin(s.wakeT)||tmin('06:45');
+  const bed=hhmm(wake-8*60-15-(s.bedAdj||0));
+  const work=weekend?'Giorno libero: approfittane per riposare le gambe.':`Al lavoro: borraccia sempre a portata${s.workType>=2?', scarpe comode e pause seduto quando puoi':''}.`;
+  const head=(t)=>`<div class="eyebrow">Piano per domani, ${gname}</div><h3 style="font-size:1.3rem;text-transform:uppercase">${t}</h3>`;
+  const ul=a=>`<ul>${a.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+  if(md===0) return head(`Matchday · fischio d'inizio ${hhmm(K)}`)+ul([
+    `Stasera a letto entro le <b>${bed}</b>`,
+    'Colazione normale con carboidrati (pane o fette con marmellata, yogurt, frutta)',
+    `Pranzo verso le ${hhmm(Math.min(K-7*60,13*60+30))}: piatto abbondante di pasta o riso condito semplice, poca carne o pesce, niente fritti`,
+    work,
+    `Spuntino verso le <b>${hhmm(K-150)}</b>: panino con marmellata o miele, oppure fette biscottate e una banana`,
+    `Bevi 400–500 ml tra le ${hhmm(K-120)} e le ${hhmm(K-30)}, poi piccoli sorsi nell'intervallo`,
+    `Arriva al campo per le ${hhmm(K-60)} e riscaldati 20 minuti: corsa leggera, mobilità, scatti progressivi`,
+    'Dopo la partita, entro un\'ora: acqua e una cena con carboidrati e proteine, non troppo pesante per dormire bene'
+  ]);
+  if(md===-1) return head('MD+1 · Recupero')+ul([
+    'Stanotte dormi più del solito, se puoi',
+    'Colazione e pranzo con carboidrati e proteine per ricaricare',
+    '20–30 minuti di camminata o bici leggera per sciogliere le gambe',
+    work,'Ricordati di dare il voto alla partita qui sotto'
+  ]);
+  if(md<-1) return '<h3>Partita già passata</h3><p class="note">Imposta la data e l\'orario della prossima partita.</p>';
+  if(md===1) return head('MD-1 · Vigilia')+ul([
+    `Stasera a letto entro le <b>${bed}</b>`,
+    'Riposo, oppure 30–40 minuti di attivazione: rapidità, tocchi di palla, niente lavoro faticoso',
+    'Carboidrati a pranzo e a cena (pasta, riso, patate), cena leggera e non tardi',
+    work,'Niente alcol','La sera prepara la borsa: scarpini, parastinchi, borraccia, spuntino per il pre-partita'
+  ]);
+  if(md===2) return head('MD-2')+ul([
+    `Stasera a letto entro le <b>${bed}</b>`,
+    'Allenamento medio-leggero: tecnica, possesso, niente sedute lunghe',
+    'Inizia ad alzare i carboidrati nei pasti principali',work
+  ]);
+  if(md===3) return head('MD-3')+ul([
+    `Stasera a letto entro le <b>${bed}</b>`,
+    'Ultimo giorno adatto a un allenamento intenso, se il recupero è buono',
+    'Pasti completi con proteine in almeno due pasti',work
+  ]);
+  return head(`MD-${md} · Costruzione`)+ul([
+    `Stasera a letto entro le <b>${bed}</b>: il sonno dei giorni prima conta quanto quello della vigilia`,
+    s.sore>=2?'Gambe ancora affaticate: recupero attivo (bici o camminata) invece di un allenamento duro':'Giorno utile per allenarti forte: corsa a intervalli, forza o allenamento di squadra',
+    'Alimentazione normale e completa, con frutta e verdura',work
+  ]);
+}
+
+function prevDays(today,n){
+  const h=store('mr-history')||{}, out=[];
+  for(let i=1;i<=n;i++){const d=new Date(today); d.setDate(d.getDate()-i); const e=entry(h[iso(d)]); if(e.total!=null) out.push(derive(e));}
+  return out;
+}
+function personal(){
+  const h=store('mr-history')||{}, pairs=[];
+  Object.keys(h).forEach(k=>{const e=entry(h[k]); if(e.rating==null) return; const d=new Date(k); d.setDate(d.getDate()-1); const p=entry(h[iso(d)]); if(p.total!=null) pairs.push({p,r:e.rating});});
+  if(pairs.length<4) return {n:pairs.length};
+  let best=null;
+  AREAS.filter(a=>a.w>0).forEach(a=>{const xs=pairs.map(x=>x.p['p_'+a.k]??0), ys=pairs.map(x=>x.r);
+    const c=corr(xs.map((x,i)=>({total:x,rating:ys[i]}))); if(!best||c>best.c) best={k:a.k,n:a.n,c};});
+  return best&&best.c>.3?{n:pairs.length,top:best.k,name:best.n,c:best.c}:{n:pairs.length};
+}
+function calibration(mdToday,s){
+  const mdT=mdToday-1, kg=+s.weight||75, lines=[];
+  const prev=prevDays(s.today,2), days=[s,...prev];
+  // sonno: debito degli ultimi giorni
+  const debt=days.reduce((a,d)=>a+Math.max(0,8-(d.sleepH||8)),0);
+  if(debt>=1) lines.push(`<b>Sonno:</b> ${days.length===1?'la notte scorsa hai dormito':'negli ultimi '+days.length+' giorni hai dormito'} circa ${fh(debt)} ${debt===1?'ora':'ore'} in meno rispetto a 8 a notte. Anticipa di ${s.bedAdj} minuti, a letto entro le <b>${hhmm((tmin(s.wakeT)||405)-8*60-15-s.bedAdj)}</b>${s.alcN?', e niente alcol stasera':''}.`);
+  else lines.push(`<b>Sonno:</b> sei in pari. Mantieni lo stesso orario di stasera.`);
+  // carboidrati e proteine
+  const tc=Math.round(carbPerKg(mdT)*kg/5)*5, tp=Math.round(1.6*kg/5)*5;
+  const pasta=Math.round(tc*.3/.71/10)*10, riso=Math.round(tc*.25/.78/10)*10, extra=tc>300?' e un panino con miele o marmellata nel pomeriggio':'', fette=Math.max(2,Math.round(tc*.2/12));
+  lines.push(`<b>Carboidrati:</b> punta a circa <b>${tc} g</b>${s.carbG!=null?` (oggi ~${s.carbG} g)`:''}. Ad esempio: colazione con ${fette} fette biscottate e marmellata, pranzo con ${pasta} g di pasta (peso a crudo), una banana come spuntino${extra}, cena con ${riso} g di riso o pane.`);
+  lines.push(`<b>Proteine:</b> circa <b>${tp} g</b>${s.protG!=null?` (oggi ~${s.protG} g)`:''}: ad esempio 150 g di pollo o pesce a pranzo e a cena, più yogurt greco o 2 uova a colazione.`);
+  // idratazione
+  const tom={...s, trainKind:mdT===0?2:s.trainKind, trainMin:mdT===0?90:60, alcN:0};
+  let wt=waterTarget(tom,mdT)+(s.alcN?.2*s.alcN:0)+(s.water<waterTarget(s,mdToday)-.5?.25:0)+(mdT===0?[0,0,.5][state.heat??1]:0);
+  wt=Math.min(4,Math.round(wt*4)/4);
+  lines.push(`<b>Idratazione:</b> almeno <b>${fh(wt)} L</b>, metà entro le 14${s.alcN?' (un po\' di più per smaltire l\'alcol di oggi)':''}${mdT===0&&(state.heat??1)===2?'. Fa caldo: aggiungi una bottiglietta di sali minerali nel pomeriggio':''}${mdT===0?', e smetti di bere in grandi quantità un\'ora prima del fischio':''}.`);
+  // alcol
+  if(mdT>=0&&mdT<=2) lines.push(`<b>Alcol:</b> zero fino a dopo la partita.`);
+  if(s.lateCaf||(s.screens||0)===2) lines.push(`<b>Abitudini serali:</b> ${s.lateCaf?'niente caffeina dopo le 16':''}${s.lateCaf&&(s.screens||0)===2?' e ':''}${(s.screens||0)===2?'telefono fuori dalla camera':''}, per dormire meglio.`);
+  if(mdT===0&&s.lateDinner) lines.push('<b>Cena:</b> stasera cena entro le 21, così domani arrivi più leggero.');
+  // carico allenamento
+  const legs=[s.legLoad||0,...prev.map(d=>d.legLoad||0)], sum=legs.reduce((a,b)=>a+b,0);
+  if(mdT>=1){
+    let t;
+    if(sum>1000||s.sore>=2) t=`carico sulle gambe alto negli ultimi giorni (${sum} UA): domani riposo o lavoro leggero, ad esempio 20–30 minuti di bici o mobilità.`;
+    else if(mdT===1) t='vigilia: riposo oppure 30–40 minuti di attivazione con pochi allunghi.';
+    else if(mdT===2) t='seduta medio-leggera: tecnica e possesso, al massimo 60 minuti. Niente palestra per le gambe.';
+    else if(s.trainKind===3&&s.gymFocus===0) t='oggi gambe in palestra: domani corsa lenta, parte alta o riposo.';
+    else t='puoi fare una seduta intensa: calcio, ripetute o palestra per le gambe (è l\'ultimo giorno utile se mancano 3 giorni).';
+    lines.push(`<b>Allenamento:</b> ${t}`);
+  }
+  const ps=personal();
+  if(ps.top) lines.push(`<b>Su di te:</b> nelle ${ps.n} partite registrate, il fattore che più si lega al tuo voto è <b>${ps.name.toLowerCase()}</b>. Gli do più peso nei consigli.`);
+  else lines.push(`<span class="note">Calibrazione personale: ${ps.n||0} di 4 partite votate. Dopo 4 voti l'app capisce quale fattore conta di più per te.</span>`);
+  return `<div class="eyebrow" style="margin-top:10px">Calibrato sulla tua giornata</div><ul>${lines.map(x=>`<li>${x}</li>`).join('')}</ul>`;
+}
+function plan(mdToday,s){
+  const prev=prevDays(s.today,2), days=[s,...prev];
+  const debt=days.reduce((a,d)=>a+Math.max(0,8-(d.sleepH||8)),0);
+  s.bedAdj=Math.min(60,Math.round(debt*20/5)*5);
+  return basePlan(mdToday,s)+(mdToday-1>=-1?calibration(mdToday,s):'');
 }
 
 /* ---- UI ---- */
@@ -368,25 +662,70 @@ function renderTabs(){
   el.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.k;renderTabs();renderFields()});
 }
 function renderFields(){
-  const el=document.getElementById('fields');
+  const el=document.getElementById('fields'), d=derive(state);
   el.innerHTML=SCHEMA[tab].filter(f=>!f.showIf||f.showIf(state)).map(f=>{
+    if(f.type==='picker') return pickerHTML();
+    if(f.type==='info') return `<div class="infoline" data-info="${f.id}">${info(f.id,d)}</div>`;
     if(f.type==='range') return `<div class="field"><label for="${f.id}">${f.label}</label><div class="inline"><input type="range" id="${f.id}" min="${f.min}" max="${f.max}" step="${f.step}" value="${state[f.id]}"><output id="o-${f.id}">${fmt(state[f.id])} ${f.unit}</output></div></div>`;
+    if(f.type==='time') return `<div class="field"><label for="${f.id}">${f.label}</label><input type="time" id="${f.id}" value="${state[f.id]||''}"></div>`;
+    if(f.type==='number') return `<div class="field"><label for="${f.id}">${f.label}</label><input type="number" inputmode="numeric" id="${f.id}" min="${f.min}" max="${f.max}" value="${state[f.id]??''}"></div>`;
+    if(f.type==='text') return `<div class="field"><label for="${f.id}">${f.label}</label><textarea id="${f.id}" rows="2" placeholder="${f.ph||''}">${(state[f.id]||'').replace(/</g,'&lt;')}</textarea></div>`;
     return `<div class="field"><label id="l-${f.id}">${f.label}</label><div class="seg" role="group" aria-labelledby="l-${f.id}">${f.opts.map((o,i)=>`<button type="button" data-f="${f.id}" data-v="${i}" aria-pressed="${state[f.id]===i}">${o}</button>`).join('')}</div></div>`;
   }).join('');
   el.querySelectorAll('input[type=range]').forEach(i=>i.oninput=()=>{state[i.id]=+i.value;document.getElementById('o-'+i.id).textContent=fmt(state[i.id])+' '+SCHEMA[tab].find(f=>f.id===i.id).unit;update()});
+  el.querySelectorAll('input[type=time],textarea').forEach(i=>i.oninput=()=>{state[i.id]=i.value;update()});
+  el.querySelectorAll('textarea').forEach(i=>i.onchange=()=>renderFields());
+  el.querySelectorAll('input[type=number]').forEach(i=>i.oninput=()=>{state[i.id]=i.value===''?0:+i.value;update()});
   el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{state[b.dataset.f]=+b.dataset.v;renderFields();update()});
+  bindPicker(el);
+}
+let meal='colazione', openCat=null;
+function usual(m){
+  const h=store('mr-history')||{}, cnt={};
+  Object.values(h).forEach(v=>{const e=entry(v); Object.keys(((e.food||{})[m])||{}).forEach(id=>cnt[id]=(cnt[id]||0)+1)});
+  return Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]).filter(id=>FOODMAP[id]);
+}
+function pickerHTML(){
+  const food=state.food||(state.food={}); const sel=food[meal]||{};
+  const tabs=MEALS.map(([k,n])=>{const c=Object.values(food[k]||{}).filter(q=>q>0).length;return `<button type="button" class="mtab" data-meal="${k}" aria-pressed="${k===meal}">${n}${c?` <span>${c}</span>`:''}</button>`}).join('');
+  const rows=Object.entries(sel).filter(([id,q])=>q>0&&FOODMAP[id]).map(([id,q])=>{const f=FOODMAP[id];return `<div class="selrow"><div><b>${f.n}</b><small>${f.por}</small></div><div class="step"><button type="button" data-dec="${id}" aria-label="Togli una porzione di ${f.n}">−</button><output>${String(q).replace('.',',')}</output><button type="button" data-inc="${id}" aria-label="Aggiungi una porzione di ${f.n}">+</button></div></div>`}).join('')
+    ||`<p class="note" style="margin:0">Niente per ${MEALS.find(x=>x[0]===meal)[1].toLowerCase()}. Tocca gli alimenti qui sotto.</p>`;
+  const cats=FOODS.filter(([c])=>meal==='bevande'?DRINKCATS.includes(c):!DRINKCATS.includes(c)||c==='Caffè');
+  const us=usual(meal);
+  const chip=id=>{const f=FOODMAP[id];return `<button type="button" class="chip" data-add="${id}">${f.n}<small>${f.por}</small></button>`};
+  const first=openCat||cats[0][0];
+  return `<div class="picker">
+    <div class="mtabs">${tabs}</div>
+    <div class="sel">${rows}</div>
+    <div class="actions"><button type="button" class="btn ghost small" data-copy="1">Copia ${MEALS.find(x=>x[0]===meal)[1].toLowerCase()} di ieri</button>${Object.keys(sel).length?'<button type="button" class="btn ghost small" data-clear="1">Svuota</button>':''}</div>
+    ${us.length?`<div class="cat"><div class="eyebrow">I tuoi soliti</div><div class="chips">${us.map(chip).join('')}</div></div>`:''}
+    ${cats.map(([c,items])=>`<details class="cat" ${c===first?'open':''} data-cat="${c}"><summary>${c}</summary><div class="chips">${items.map(([id])=>chip(id)).join('')}</div></details>`).join('')}
+  </div>`;
+}
+function bindPicker(el){
+  const food=()=>{state.food=state.food||{}; state.food[meal]=state.food[meal]||{}; return state.food[meal]};
+  const redo=()=>{renderFields();update()};
+  el.querySelectorAll('[data-meal]').forEach(b=>b.onclick=()=>{meal=b.dataset.meal;openCat=null;redo()});
+  el.querySelectorAll('[data-add]').forEach(b=>b.onclick=()=>{const id=b.dataset.add, f=FOODMAP[id], m=food(); m[id]=(m[id]||0)+1; redo()});
+  el.querySelectorAll('[data-inc]').forEach(b=>b.onclick=()=>{const id=b.dataset.inc, m=food(); m[id]=Math.round(((m[id]||0)+(FOODMAP[id].st||1))*10)/10; redo()});
+  el.querySelectorAll('[data-dec]').forEach(b=>b.onclick=()=>{const id=b.dataset.dec, m=food(); m[id]=Math.round(((m[id]||0)-(FOODMAP[id].st||1))*10)/10; if(m[id]<=0) delete m[id]; redo()});
+  el.querySelectorAll('[data-clear]').forEach(b=>b.onclick=()=>{food(); state.food[meal]={}; redo()});
+  el.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{const d=new Date(state.today); d.setDate(d.getDate()-1); const y=entry((store('mr-history')||{})[iso(d)]);
+    if(y.food&&y.food[meal]&&Object.keys(y.food[meal]).length){food(); state.food[meal]=JSON.parse(JSON.stringify(y.food[meal])); redo()} else toast('Ieri non c\'è niente salvato per questo pasto.')});
+  el.querySelectorAll('details.cat').forEach(d=>d.ontoggle=()=>{if(d.open) openCat=d.dataset.cat});
 }
 const fmt=v=>String(v).replace('.',',');
 
 function update(){
-  const r=compute(state);
+  const r=compute(state), d=derive(state);
+  document.querySelectorAll('[data-info]').forEach(e=>e.innerHTML=info(e.dataset.info,d));
   document.getElementById('score').innerHTML=`${r.total}<small>%</small>`;
-  const [v,d]=verdict(r.total,r);
-  document.getElementById('verdict').innerHTML=`${v}<span>${d}</span>`;
+  const [v,vd]=verdict(r.total,r);
+  document.getElementById('verdict').innerHTML=`${v}<span>${vd}</span>`;
   document.getElementById('mdTag').textContent = r.md<0?'Passata': r.md===0?'Matchday':`MD-${r.md}`;
   document.getElementById('bars').innerHTML=AREAS.map(a=>{const x=Math.round(r.parts[a.k]);return `<div class="bar"><b>${x}</b><div class="track"><div class="fill" style="width:${x}%"></div></div><i>${a.n}</i></div>`}).join('');
-  document.getElementById('tips').innerHTML=tips(state,r).map(t=>`<li class="tip p${t.pr}"><div><strong>${t.t}</strong><p>${t.d}</p>${t.gain?`<span class="gain">fino a +${t.gain} punti</span>`:''}</div></li>`).join('');
-  document.getElementById('plan').innerHTML=plan(r.md);
+  document.getElementById('tips').innerHTML=tips(d,r).map(t=>`<li class="tip p${t.pr}"><div><strong>${t.t}</strong><p>${t.d}</p>${t.gain?`<span class="gain">fino a +${t.gain} punti</span>`:''}</div></li>`).join('');
+  document.getElementById('plan').innerHTML=plan(r.md,d);
   store('mr-draft',state);
 }
 
@@ -411,14 +750,24 @@ function renderChart(){
 }
 
 function bindDates(){
-  ['today','matchDate'].forEach(id=>{const i=document.getElementById(id);i.value=state[id];i.onchange=()=>{state[id]=i.value;update();renderChart()}});
+  ['today','matchDate','kickoff','heat'].forEach(id=>{const i=document.getElementById(id);i.value=state[id]??'';i.onchange=()=>{
+    state[id]=id==='heat'?+i.value:i.value;
+    if(id==='today'){autoYesterday();const e=entry((store('mr-history')||{})[i.value]); if(e.total!=null){Object.values(SCHEMA).flat().forEach(f=>{if(e[f.id]!=null)state[f.id]=JSON.parse(JSON.stringify(e[f.id]))}); if(e.matchDate)state.matchDate=e.matchDate; document.getElementById('matchDate').value=state.matchDate; toast('Giornata già salvata: puoi modificarla e salvarla di nuovo.')}}
+    renderFields();update();renderChart();saveLabel()}});
+}
+function autoYesterday(){
+  const d=new Date(state.today); d.setDate(d.getDate()-1);
+  const y=entry((store('mr-history')||{})[iso(d)]); if(y.trainT!=null) state.trainY=y.trainT;
+}
+function toast(m){const t=document.getElementById('toast');t.style.color='var(--muted)';t.textContent=m;setTimeout(()=>t.textContent='',4000)}
+function saveLabel(){const e=entry((store('mr-history')||{})[state.today]);document.getElementById('save').textContent=e.total!=null?'Aggiorna giornata':'Salva giornata'
 }
 document.getElementById('save').onclick=()=>{
   const h=store('mr-history')||{}; const r=compute(state); const prev=entry(h[state.today]);
-  const e=Object.assign({},state,{total:r.total,md:r.md}); AREAS.forEach(a=>e['p_'+a.k]=Math.round(r.parts[a.k]));
+  const e=Object.assign({},derive(state),{total:r.total,md:r.md}); delete e.fd; AREAS.forEach(a=>e['p_'+a.k]=Math.round(r.parts[a.k]));
   ['rating','minutes'].forEach(k=>{if(prev[k]!=null)e[k]=prev[k]});
   h[state.today]=e; store('mr-history',h);
-  renderChart(); const t=document.getElementById('toast'); t.textContent=`Giornata del ${state.today.split('-').reverse().join('/')} salvata.`; setTimeout(()=>t.textContent='',3000);
+  renderChart(); saveLabel(); const t=document.getElementById('toast'); t.style.color='var(--good)'; t.textContent=`Giornata del ${state.today.split('-').reverse().join('/')} salvata.`; setTimeout(()=>t.textContent='',3000);
 };
 /* ---- Voto partita ---- */
 let pmRate=null;
@@ -450,10 +799,11 @@ function corr(a){
 }
 function buildCsv(){
   const h=store('mr-history')||{}; const dates=Object.keys(h).sort();
-  const cols=['data','data_partita','md','prontezza',...AREAS.map(a=>'p_'+a.k),...Object.values(SCHEMA).flat().map(f=>f.id),'voto_partita','minuti_giocati'];
+  const F=Object.values(SCHEMA).flat().filter(f=>f.type!=='info'&&f.type!=='picker').map(f=>f.id), D=['sleepH','bedtime','workH','workEnd','load','legLoad','trainT','carbG','protG','water','alcN'];
+  const cols=['data','data_partita','orario_partita','meteo','md','prontezza',...AREAS.map(a=>'p_'+a.k),...F,...D,...MEALS.map(([m])=>m),'voto_partita','minuti_giocati'];
   const rows=dates.map(d=>{const e=entry(h[d]);
-    return [d,e.matchDate??'',e.md??'',e.total??'',...AREAS.map(a=>e['p_'+a.k]??''),...Object.values(SCHEMA).flat().map(f=>e[f.id]??''),e.rating??'',e.minutes??'']
-      .map(v=>String(v).replace('.',',')).join(';')});
+    return [d,e.matchDate??'',e.kickoff??'',['fresco','mite','caldo'][e.heat??1],e.md??'',e.total??'',...AREAS.map(a=>e['p_'+a.k]??''),...F.map(k=>e[k]??''),...D.map(k=>e[k]??''),...MEALS.map(([m])=>foodList(e,m)),e.rating??'',e.minutes??'']
+      .map(v=>typeof v==='number'?String(v).replace('.',','):'"'+String(v).replace(/"/g,"'").replace(/[\r\n;]+/g,' ')+'"').join(';')});
   return [cols.join(';'),...rows].join('\n');
 }
 document.getElementById('exportCsv').onclick=()=>{
@@ -477,7 +827,8 @@ document.getElementById('reset').onclick=()=>{state=defaults();bindDates();rende
 state=Object.assign(defaults(),store('mr-draft')||{});
 state.today=iso(new Date());
 document.getElementById('pmDate').value=state.matchDate<=state.today?state.matchDate:state.today;
-bindDates();renderTabs();renderFields();update();renderChart();renderRate();renderStats();
+if(!state.kickoff)state.kickoff='20:30';
+autoYesterday();bindDates();renderTabs();renderFields();update();renderChart();renderRate();renderStats();saveLabel();
 document.getElementById('save').addEventListener('click',renderStats);
 if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
 </script>
