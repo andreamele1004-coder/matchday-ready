@@ -77,6 +77,7 @@ h2{font-size:1.5rem;font-weight:700;text-transform:uppercase}
 .selrow>div:first-child{min-width:0}
 .selrow b{display:block;font-weight:600}
 .selrow small,.chip small{display:block;color:var(--muted);font-size:.78rem;font-weight:400}
+.selrow small.warnq{color:var(--bad);font-weight:700}
 .step{display:flex;align-items:center;gap:6px}
 .step button{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:1.2rem;cursor:pointer}
 .step output{min-width:2.2ch;text-align:center;font-family:var(--display);font-weight:700;font-size:1.15rem;font-variant-numeric:tabular-nums}
@@ -449,7 +450,7 @@ const CAT=[
 const FOODMAP={};
 function addFood(f){FOODMAP[f.id]=f}
 CAT.forEach(([cat,items])=>items.forEach(([id,n,q,u,c,p,x])=>addFood({id,n,cat,q,u,c,p,...(x||{})})));
-function loadCustom(){try{Object.values(JSON.parse(localStorage.getItem('mr-custom')||'{}')).forEach(addFood)}catch(e){}}
+function loadCustom(){try{Object.values(JSON.parse(localStorage.getItem('mr-custom')||'{}')).forEach(f=>{const liq=f.u==='ml'; if(!(f.q>=(liq?30:10)&&f.q<=(liq?500:250))) f.q=liq?250:100; addFood(f);})}catch(e){}}
 function saveCustom(f){addFood(f);try{const c=JSON.parse(localStorage.getItem('mr-custom')||'{}');c[f.id]=f;localStorage.setItem('mr-custom',JSON.stringify(c))}catch(e){}}
 loadCustom();
 const MEALS=[['colazione','Colazione'],['pranzo','Pranzo'],['cena','Cena'],['spuntini','Spuntini'],['bevande','Bevande']];
@@ -480,7 +481,7 @@ async function searchOFF(q){
     const drink=/beverage|drink|water|juice|soda|beer|wine|bevand/.test(cats);
     const alc=+n.alcohol_100g||+n.alcohol||0;
     const name=(p.product_name_it||p.product_name).trim()+(p.brands?` (${p.brands.split(',')[0].trim()})`:'');
-    return {id:'off_'+p.code,n:name,cat:'Cercati online',q:Math.round(+p.serving_quantity||(drink?250:100)),u:drink?'ml':'g',
+    return {id:'off_'+p.code,n:name,cat:'Cercati online',q:(()=>{const sq=+p.serving_quantity; const d=drink?250:100, lo=drink?30:10, hi=drink?500:250; return Math.round(sq>=lo&&sq<=hi?sq:d);})(),u:drink?'ml':'g',
       c:Math.round((+n.carbohydrates_100g||0)*10)/10,p:Math.round((+n.proteins_100g||0)*10)/10,alc:alc||undefined,liq:drink&&!alc?1:undefined,
       kcal:Math.round(+n['energy-kcal_100g']||0)};
   });
@@ -896,7 +897,7 @@ function resultsHTML(){
 function pickerHTML(){
   const food=state.food||(state.food={}); const sel=food[meal]||{};
   const tabs=MEALS.map(([k,n])=>{const c=Object.values(food[k]||{}).filter(q=>q>0).length;return `<button type="button" class="mtab" data-meal="${k}" aria-pressed="${k===meal}">${n}${c?` <span>${c}</span>`:''}</button>`}).join('');
-  const rows=Object.entries(sel).filter(([id,g])=>g>0&&FOODMAP[id]).map(([id,g])=>{const f=FOODMAP[id];return `<div class="selrow"><div><b>${f.n}</b><small>porzione tipica ${f.q} ${unitOf(f)}</small></div><div class="step"><button type="button" data-dec="${id}" aria-label="Diminuisci ${f.n}">−</button><label class="qty"><input type="number" inputmode="decimal" min="0" data-qty="${id}" value="${g}" aria-label="Quantità di ${f.n} in ${unitOf(f)}"><span>${unitOf(f)}</span></label><button type="button" data-inc="${id}" aria-label="Aumenta ${f.n}">+</button></div></div>`}).join('')
+  const rows=Object.entries(sel).filter(([id,g])=>g>0&&FOODMAP[id]).map(([id,g])=>{const f=FOODMAP[id];return `<div class="selrow"><div><b>${f.n}</b><small>porzione tipica ${f.q} ${unitOf(f)} · ~${Math.round((f.c||0)*g/100)} g carboidrati</small>${g>Math.max(4*f.q,600)?`<small class="warnq">Quantità molto alta: controlla che sia giusta</small>`:''}</div><div class="step"><button type="button" data-dec="${id}" aria-label="Diminuisci ${f.n}">−</button><label class="qty"><input type="number" inputmode="decimal" min="0" data-qty="${id}" value="${g}" aria-label="Quantità di ${f.n} in ${unitOf(f)}"><span>${unitOf(f)}</span></label><button type="button" data-inc="${id}" aria-label="Aumenta ${f.n}">+</button></div></div>`}).join('')
     ||`<p class="note" style="margin:0">Niente per ${MEALS.find(x=>x[0]===meal)[1].toLowerCase()}. Cerca o scegli dall'elenco qui sotto.</p>`;
   return `<div class="picker">
     <div class="mtabs">${tabs}</div>
