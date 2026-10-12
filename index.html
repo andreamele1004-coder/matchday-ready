@@ -173,6 +173,10 @@ textarea{width:100%;min-height:120px;font:12px/1.4 ui-monospace,monospace;color:
         <label for="heat">Meteo previsto</label>
         <select id="heat"><option value="0">Fresco</option><option value="1">Mite</option><option value="2">Caldo (oltre 25°)</option></select>
       </div>
+      <div class="field" style="flex:1;min-width:120px">
+        <label for="pitch">Campo della partita</label>
+        <select id="pitch"><option value="0">Erba naturale</option><option value="1">Sintetico</option><option value="2">Terra / altro</option></select>
+      </div>
     </div>
     <div class="tabs" role="tablist" id="tabs"></div>
     <div class="fields" id="fields"></div>
@@ -245,7 +249,9 @@ const SCHEMA = {
     {id:'screens',label:'Telefono o TV a letto prima di dormire',type:'seg',opts:['No','Meno di 30 min','Più di 30 min'],def:1}
   ],
   alimentazione:[
-    {id:'weight',label:'Il tuo peso (kg), serve per calcolare le quantità',type:'number',min:40,max:150,def:75},
+    {id:'weight',label:'Peso di stamattina (kg) · aggiornalo quando ti pesi, a digiuno',type:'number',min:40,max:150,def:75},
+    {id:'weightInfo',type:'info',showIf:s=>!!s.wMeasured},
+    {id:'cafTol',label:'Tolleri bene la caffeina? (serve per il consiglio pre-partita)',type:'seg',opts:['Sì','No','Non so'],def:2,opt:true},
     {id:'food',type:'picker',def:null},
     {id:'foodInfo',type:'info'},
     {id:'dinnerT',label:'A che ora hai cenato?',type:'time',def:'20:30'},
@@ -260,6 +266,8 @@ const SCHEMA = {
     {id:'trainRPE',label:'Quanto è stato faticoso? (1 = facilissimo, 10 = massimo)',type:'range',min:1,max:10,step:1,unit:'/10',def:5,showIf:s=>s.trainKind>0},
     {id:'trainInfo',type:'info',showIf:s=>s.trainKind>0},
     {id:'trainNote',label:'Cosa hai fatto nel dettaglio',type:'text',ph:'es. riscaldamento, possesso palla, partitella, 6 scatti da 30 m / squat 4x8, affondi',showIf:s=>s.trainKind>0},
+    {id:'surface',label:'Su che terreno?',type:'seg',opts:['Erba naturale','Sintetico','Terra / altro'],def:0,showIf:s=>s.trainKind===1||s.trainKind===2},
+    {id:'acwrInfo',type:'info'},
     {id:'trainY',label:'Allenamento di ieri',type:'seg',opts:['Riposo','Leggero','Medio','Intenso'],def:0},
     {id:'sore',label:'Indolenzimento muscolare (gambe)',type:'seg',opts:['Nessuno','Lieve','Medio','Forte'],def:1}
   ],
@@ -277,6 +285,8 @@ const SCHEMA = {
     {id:'energy',label:'Energia generale',type:'seg',opts:['Scarico','Bassa','Normale','Buona','Carico'],def:2},
     {id:'mood',label:'Umore e motivazione',type:'seg',opts:['Basso','Medio','Buono','Alto'],def:2},
     {id:'legs',label:'Sensazione delle gambe',type:'seg',opts:['Pesanti','Normali','Leggere'],def:1},
+    {id:'anxiety',label:'Tensione o ansia pensando alla partita',type:'seg',opts:['Nessuna','Un po\'','Tanta'],def:0},
+    {id:'focus',label:'Concentrazione e lucidità oggi',type:'seg',opts:['Scarsa','Normale','Ottima'],def:1},
     {id:'rhr',label:'Battito a riposo al risveglio (bpm) · dallo smartwatch o contando 60 secondi, 0 se non lo sai',type:'number',min:0,max:120,def:0},
     {id:'rhrInfo',type:'info',showIf:s=>+s.rhr>0},
     {id:'steps',label:'Passi della giornata',type:'seg',opts:['Meno di 5.000','5–10.000','10–15.000','Più di 15.000'],def:1},
@@ -288,7 +298,8 @@ const SCHEMA = {
     {id:'phase',label:'Fase dopo un infortunio o una malattia',type:'seg',opts:['Nessuna','Stop / riposo','Riabilitazione','Rientro progressivo','Recupero completo'],def:0},
     {id:'cleared',label:'Via libera di medico o fisioterapista per giocare',type:'seg',opts:['Non serve','Sì','Non ancora'],def:0,showIf:s=>s.injury>=2||(s.phase>=1&&s.phase<=3)},
     {id:'illness',label:'Malattia in corso',type:'seg',opts:['No','Raffreddore / gola','Febbre o influenza','Problemi intestinali'],def:0},
-    {id:'meds',label:'Antidolorifici o antinfiammatori nelle ultime 24 ore',type:'seg',opts:['No','Sì'],def:0}
+    {id:'meds',label:'Antidolorifici o antinfiammatori nelle ultime 24 ore',type:'seg',opts:['No','Sì'],def:0},
+    {id:'smoke',label:'Sigarette o sigaretta elettronica oggi (facoltativo)',type:'seg',opts:['No','Da 1 a 5','Più di 5'],def:0,opt:true}
   ]
 };
 const AREAS = [
@@ -318,7 +329,9 @@ function derive(src){
   // carico allenamento (sRPE = minuti x fatica)
   s.load = s.trainKind>0 ? (+s.trainMin||0)*(+s.trainRPE||0) : 0;
   const lf = s.trainKind>0 ? ((LEGF[s.trainKind]||[1])[s.trainKind===3?(s.gymFocus||0):s.trainKind===4?(s.runType||0):0] ?? 1) : 0;
-  s.legLoad = Math.round(s.load*lf);
+  s.legLoad = Math.round(s.load*lf*((s.trainKind===1||s.trainKind===2)&&s.surface===1?1.1:1));
+  s.acwr = acwrOf(s);
+  s.wTrend = s.wMeasured?weightTrend(s):null;
   s.trainT = s.legLoad===0?0 : s.legLoad<=200?1 : s.legLoad<=420?2 : 3;
   // alimentazione e bevande dalle scelte
   const fd=parseDay(s); s.fd=fd; const kg=+s.weight||75;
@@ -475,8 +488,28 @@ function rhrBase(d){
   for(let i=1;i<=7;i++){const x=new Date(d.today); x.setDate(x.getDate()-i); const e=entry(h[iso(x)]); if(+e.rhr>0) v.push(+e.rhr);}
   return v.length>=3?Math.round(v.reduce((a,b)=>a+b,0)/v.length):null;
 }
+/* Carico acuto/cronico: ultimi 7 giorni contro la media settimanale delle ultime 4 */
+function acwrOf(s){
+  const h=store('mr-history')||{}; let acute=s.load||0, chronic=s.load||0, filled=1;
+  for(let i=1;i<28;i++){const d=new Date(s.today); d.setDate(d.getDate()-i); const e=entry(h[iso(d)]); if(e.total==null) continue; filled++;
+    const l=+e.load||0; chronic+=l; if(i<7) acute+=l;}
+  if(filled<12) return {ok:false,filled};
+  const ch=chronic/4; if(ch<50) return {ok:false,filled};
+  return {ok:true,ratio:Math.round(acute/ch*100)/100,acute:Math.round(acute),chronic:Math.round(ch),filled};
+}
+/* Peso: confronto con la media delle pesate dei 7 giorni precedenti */
+function weightTrend(s){
+  const h=store('mr-history')||{}, v=[];
+  for(let i=1;i<=7;i++){const d=new Date(s.today); d.setDate(d.getDate()-i); const e=entry(h[iso(d)]); if(e.wMeasured&&+e.weight>0) v.push(+e.weight);}
+  if(!v.length||!(+s.weight>0)) return null;
+  const avg=v.reduce((a,b)=>a+b,0)/v.length; return {avg:Math.round(avg*10)/10,pct:Math.round((s.weight-avg)/avg*1000)/10};
+}
 function info(id,d){
   if(id==='sleepInfo') return `Hai dormito circa <b>${fh(d.sleepH)} ore</b>`+(d.sleepH<7.5?' · sotto l\'obiettivo di 7,5–9':d.sleepH<=9.5?' · nell\'obiettivo':'');
+  if(id==='acwrInfo'){const a=d.acwr; if(!a||!a.ok) return `Carico settimanale: servono almeno 12 giornate salvate nelle ultime 4 settimane (ora ${a?a.filled:0}).`;
+    const z=a.ratio>1.5?'<b style="color:var(--bad)">picco rischioso</b>':a.ratio>1.3?'<b style="color:var(--warn)">in salita, attenzione</b>':a.ratio<.8?'<b>più basso del solito</b>':'<b style="color:var(--good)">nella zona sicura</b>';
+    return `Carico settimanale: <b>${String(a.ratio).replace('.',',')}</b> volte la tua media (${a.acute} UA negli ultimi 7 giorni contro ${a.chronic} di media) · ${z}`;}
+  if(id==='weightInfo'){const w=d.wTrend; return w?`Rispetto alla media dei giorni scorsi (${String(w.avg).replace('.',',')} kg): <b>${w.pct>0?'+':''}${String(w.pct).replace('.',',')}%</b>${w.pct<=-1.5?' · calo rapido, probabile disidratazione':''}`:'Prima pesata registrata: dalla prossima vedrai l\'andamento.';}
   if(id==='trainInfo') return `Carico della seduta: <b>${d.load} UA</b> (minuti × fatica) · impatto sulle gambe: <b>${LOADN[d.trainT]}</b>`+(d.trainKind===4&&+d.runKm>0&&+d.trainMin>0?` · ritmo medio ${Math.floor(d.trainMin/d.runKm)}:${String(Math.round(d.trainMin/d.runKm%1*60)).padStart(2,'0')}/km`:'');
   if(id==='foodInfo'){
     const f=d.fd, kg=+d.weight||75, md=daysToMatch();
@@ -496,8 +529,8 @@ function defaults(){
 function neutral(){const s={}; Object.values(SCHEMA).flat().forEach(f=>{if(f.def!=null) s[f.id]=f.def}); s.food={}; return s;}
 function blank(date){
   const m=store('mr-match')||{}, p=store('mr-profile')||{}, d=defaults();
-  const s={today:date, food:{}, matchDate:m.matchDate||d.matchDate, kickoff:m.kickoff||'20:30', heat:m.heat??1, touched:false};
-  if(p.weight) s.weight=p.weight;
+  const s={today:date, food:{}, matchDate:m.matchDate||d.matchDate, kickoff:m.kickoff||'20:30', heat:m.heat??1, pitch:m.pitch??0, touched:false};
+  if(p.weight) s.weight=p.weight; if(p.cafTol!=null) s.cafTol=p.cafTol;
   return s;
 }
 function store(k,v){try{ if(v===undefined) return JSON.parse(localStorage.getItem(k)); localStorage.setItem(k,JSON.stringify(v)) }catch(e){return null}}
@@ -536,10 +569,14 @@ function compute(src){
   let carry = md<=1&&md>=0 ? [100,95,75,45][loadY] : [100,100,92,80][loadY];
   rec = .5*rec + .25*okToday + .25*carry - alcRec + [0,3,6][s.mobility||0] + [-8,0,4][s.legs??1] - [0,0,3,7][s.steps||0];
   rec -= [0,8,25,40][s.injury||0];
+  if(s.acwr&&s.acwr.ok){ const r=s.acwr.ratio; rec -= r>1.5?14:r>1.3?6:0; }
+  if(s.smoke) rec -= [0,3,7][s.smoke];
   // Lavoro
   let lavoro = 100 - clamp((s.workH-8)*7,0,40) - (s.workOff?0:[0,5,15,28][s.workType]) - [0,4,12,22][s.workEnd] - (s.workOff?0:[0,2,6,10][s.commute??1]) - [0,8,20,32][s.stress];
   // Benessere
-  let ben = .55*(s.energy/4*100) + .45*(s.mood/3*100);
+  let ben = .4*(s.energy/4*100) + .3*(s.mood/3*100) + .15*[100,75,40][s.anxiety??0] + .15*[40,80,100][s.focus??1];
+  if(s.wTrend&&s.wTrend.pct<=-1.5) ben -= s.wTrend.pct<=-2.5?15:8;
+  if(s.smoke) ben -= [0,4,8][s.smoke];
   ben -= [0,8,30,25][s.illness||0];
   const rb=+s.rhr>0?rhrBase(s):null; if(rb){const df=s.rhr-rb; ben -= df>=8?25: df>=5?12: df>=3?5:0;}
   // Salute: punteggio mostrato a parte e "tetto" massimo alla prontezza
@@ -599,6 +636,15 @@ function tips(s,r){
   if(s.sore>=1&&!s.mobility) add(3,'10 minuti di mobilità stasera','Stretching dolce o foam roller su polpacci, quadricipiti e flessori aiutano le gambe a recuperare.','allenamento');
   if((s.steps||0)===3&&md<=2&&!s.workOff) add(2,'Tante ore in piedi','Più di 15.000 passi a ridosso della partita stancano le gambe: stasera gambe in alto per 10–15 minuti.','lavoro');
   if(s.legs===0&&md<=2) add(2,'Gambe pesanti','Recupero attivo leggero, idratazione e sonno: niente lavoro intenso fino alla partita.','allenamento');
+  if(s.acwr&&s.acwr.ok&&s.acwr.ratio>1.5) add(1,'Picco di carico',`Negli ultimi 7 giorni hai fatto ${String(s.acwr.ratio).replace('.',',')} volte il tuo carico medio: è la situazione con più rischio di strappi. Nei prossimi giorni sedute leggere o riposo.`,'allenamento');
+  else if(s.acwr&&s.acwr.ok&&s.acwr.ratio>1.3) add(2,'Carico in salita','Stai aumentando in fretta rispetto alle settimane scorse: tieni la prossima seduta media, non intensa.','allenamento');
+  else if(s.acwr&&s.acwr.ok&&s.acwr.ratio<.8&&md>3) add(3,'Carico basso','Ti stai allenando meno del solito: se stai bene, è il momento di una seduta più impegnativa.','allenamento');
+  if((s.anxiety??0)===2) add(md<=1?1:2,'Gestisci la tensione','Prova 5 minuti di respirazione lenta (4 secondi dentro, 6 fuori) stasera e prima del riscaldamento, e ripassa 2–3 cose semplici che vuoi fare in campo. Una routine pre-partita sempre uguale aiuta a scaricare l\'ansia.','benessere');
+  if((s.focus??1)===0) add(2,'Lucidità bassa','Di solito dipende da sonno scarso, schermi la sera o pasti saltati. Stasera telefono lontano e a letto presto.','benessere');
+  if(s.wTrend&&s.wTrend.pct<=-1.5) add(1,'Peso in calo rapido',`Oggi pesi il ${String(Math.abs(s.wTrend.pct)).replace('.',',')}% in meno della media dei giorni scorsi: quasi sempre è acqua persa. Bevi di più, anche con sali minerali, e non saltare i pasti.`,'alimentazione');
+  if(s.smoke) add(md<=1?1:2,'Fumo prima della partita','Nelle ore dopo una sigaretta il sangue trasporta meno ossigeno e il fiato ne risente. Il giorno della partita evita di fumare, almeno nelle 6–8 ore prima.','benessere');
+  if((state.pitch??0)===1&&md<=3&&md>=0&&s.surface!==1&&(s.trainKind===1||s.trainKind===2)) add(2,'Partita sul sintetico','Ti alleni su erba ma giochi sul sintetico: più carico su polpacci e tendini. Scarpe adatte (tacchetti corti o AG) e qualche minuto in più di riscaldamento per i polpacci.','allenamento');
+  if((state.heat??1)===2&&md<=1&&md>=0) add(1,'Partita con il caldo','Sopra i 25° la sudorazione aumenta molto: bevi già da oggi e porta sali minerali alla partita.','alimentazione');
   if(s.sleepH<7.5) add(1,`Punta a ${s.sleepH<6.5?'almeno 8':'7,5–9'} ore stanotte`,`Hai dormito ${String(s.sleepH).replace('.',',')} h. Vai a letto 30–45 minuti prima, schermi spenti, camera fresca e buia.`,'sonno');
   else if(s.sleepQ<2||s.bedtime>=2) add(2,'Migliora la qualità del sonno','Orari regolari, niente caffè dopo le 15 e cena non troppo tardi aiutano più delle ore extra.','sonno');
   const wt=waterTarget(s,md);
@@ -621,6 +667,13 @@ function tips(s,r){
   return out.sort((a,b)=>a.pr-b.pr||a.h-b.h||b.gain-a.gain).slice(0,7);
 }
 
+function cafLine(s,K){
+  const evening=K>=20*60, kg=+s.weight||75, mg=Math.round(kg*(evening?2:3)/10)*10, esp=Math.max(1,Math.round(mg/65));
+  if((s.cafTol??2)===1) return ['Niente caffeina: per te meglio evitarla prima della partita'];
+  const late=evening?' La dose è più bassa del normale perché giochi di sera: così dormi meglio dopo la partita.':'';
+  if((s.cafTol??2)===2) return [`Caffeina: se vuoi provarla, prendi un solo caffè verso le <b>${hhmm(K-60)}</b> e prova prima in allenamento come reagisci, mai la prima volta in partita.${late}`];
+  return [`Caffeina: circa ${mg} mg (${esp} caffè espress${esp>1?'i':'o'}) verso le <b>${hhmm(K-60)}</b>, 45–60 minuti prima del fischio. Migliora resistenza e reattività.${late}`];
+}
 function basePlan(mdToday,s){
   const md=mdToday-1;
   const tom=new Date(s.today); tom.setDate(tom.getDate()+1);
@@ -638,7 +691,8 @@ function basePlan(mdToday,s){
     work,
     `Spuntino verso le <b>${hhmm(K-150)}</b>: panino con marmellata o miele, oppure fette biscottate e una banana`,
     `Bevi 400–500 ml tra le ${hhmm(K-120)} e le ${hhmm(K-30)}, poi piccoli sorsi nell'intervallo`,
-    `Arriva al campo per le ${hhmm(K-60)} e riscaldati 20 minuti: corsa leggera, mobilità, scatti progressivi`,
+    ...cafLine(s,K),
+    `Arriva al campo per le ${hhmm(K-60)} e riscaldati 20 minuti: corsa leggera, mobilità, scatti progressivi${(state.pitch??0)===1?'. Sul sintetico insisti su polpacci e caviglie':''}`,
     'Dopo la partita, entro un\'ora: acqua e una cena con carboidrati e proteine, non troppo pesante per dormire bene'
   ]);
   if(md===-1) return head('MD+1 · Recupero')+ul([
@@ -717,6 +771,7 @@ function calibration(mdToday,s){
     else t='puoi fare una seduta intensa: calcio, ripetute o palestra per le gambe (è l\'ultimo giorno utile se mancano 3 giorni).';
     lines.push(`<b>Allenamento:</b> ${t}`);
   }
+  if(s.acwr&&s.acwr.ok) lines.push(`<b>Carico settimanale:</b> ${String(s.acwr.ratio).replace('.',',')} volte la tua media${s.acwr.ratio>1.3?': domani tieni basso il carico, il rischio di infortunio sale oltre 1,5':s.acwr.ratio<.8?': sei sotto la media, puoi caricare un po\' di più':': nella zona sicura (0,8–1,3)'}.`);
   const ps=personal();
   if(ps.top) lines.push(`<b>Su di te:</b> nelle ${ps.n} partite registrate, il fattore che più si lega al tuo voto è <b>${ps.name.toLowerCase()}</b>. Gli do più peso nei consigli.`);
   else lines.push(`<span class="note">Calibrazione personale: ${ps.n||0} di 4 partite votate. Dopo 4 voti l'app capisce quale fattore conta di più per te.</span>`);
@@ -731,7 +786,7 @@ function plan(mdToday,s){
 
 /* ---- UI ---- */
 function tabDone(k){
-  return SCHEMA[k].filter(f=>(!f.showIf||f.showIf(state))&&['seg','time','picker'].includes(f.type)).every(f=>f.type==='picker'?parseDay(state).any:state[f.id]!=null&&state[f.id]!=='');
+  return SCHEMA[k].filter(f=>(!f.showIf||f.showIf(state))&&['seg','time','picker'].includes(f.type)&&!f.opt).every(f=>f.type==='picker'?parseDay(state).any:state[f.id]!=null&&state[f.id]!=='');
 }
 function renderTabs(){
   const el=document.getElementById('tabs');
@@ -752,8 +807,8 @@ function renderFields(){
   el.querySelectorAll('input[type=range]').forEach(i=>i.oninput=()=>{touch();state[i.id]=+i.value;document.getElementById('o-'+i.id).textContent=fmt(state[i.id])+' '+SCHEMA[tab].find(f=>f.id===i.id).unit;update()});
   el.querySelectorAll('input[type=time],textarea').forEach(i=>i.oninput=()=>{touch();state[i.id]=i.value;update();renderTabs()});
   el.querySelectorAll('textarea').forEach(i=>i.onchange=()=>renderFields());
-  el.querySelectorAll('input[type=number][id]').forEach(i=>i.oninput=()=>{touch();state[i.id]=i.value===''?'':+i.value; if(i.id==='weight'){const p=store('mr-profile')||{};p.weight=state.weight;store('mr-profile',p)} update()});
-  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{touch();state[b.dataset.f]=+b.dataset.v;renderFields();update();renderTabs()});
+  el.querySelectorAll('input[type=number][id]').forEach(i=>i.oninput=()=>{touch();state[i.id]=i.value===''?'':+i.value; if(i.id==='weight'){state.wMeasured=true;const p=store('mr-profile')||{};p.weight=state.weight;store('mr-profile',p)} update()});
+  el.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>{touch();state[b.dataset.f]=+b.dataset.v; if(b.dataset.f==='cafTol'){const p=store('mr-profile')||{};p.cafTol=+b.dataset.v;store('mr-profile',p);}renderFields();update();renderTabs()});
   bindPicker(el);
 }
 let meal='colazione', openCat=null, searchQ='', offRes={}, offStatus='';
@@ -882,10 +937,10 @@ function renderChart(){
 }
 
 function bindDates(){
-  ['today','matchDate','kickoff','heat'].forEach(id=>{const i=document.getElementById(id);i.value=state[id]??'';i.onchange=()=>{
-    state[id]=id==='heat'?+i.value:i.value;
+  ['today','matchDate','kickoff','heat','pitch'].forEach(id=>{const i=document.getElementById(id);i.value=state[id]??(id==='pitch'?0:'');i.onchange=()=>{
+    state[id]=id==='heat'||id==='pitch'?+i.value:i.value;
     if(id==='today'){const ok=loadDay(i.value); if(ok) toast('Giornata già salvata: puoi modificarla e salvarla di nuovo.'); bindDates();}
-    else {store('mr-match',{matchDate:state.matchDate,kickoff:state.kickoff,heat:state.heat});}
+    else {store('mr-match',{matchDate:state.matchDate,kickoff:state.kickoff,heat:state.heat,pitch:state.pitch??0});}
     renderTabs();renderFields();update();renderChart();saveLabel()}});
 }
 function loadDay(date){
@@ -893,7 +948,7 @@ function loadDay(date){
   state=blank(date);
   if(e.total!=null){
     Object.values(SCHEMA).flat().forEach(f=>{if(e[f.id]!=null&&e[f.id]!=='')state[f.id]=JSON.parse(JSON.stringify(e[f.id]))});
-    if(e.matchDate) state.matchDate=e.matchDate; if(e.kickoff) state.kickoff=e.kickoff; if(e.heat!=null) state.heat=e.heat;
+    if(e.matchDate) state.matchDate=e.matchDate; if(e.kickoff) state.kickoff=e.kickoff; if(e.heat!=null) state.heat=e.heat; if(e.pitch!=null) state.pitch=e.pitch;
     migrateFood(state);
   } else {const dr=store('mr-draft'); if(dr&&dr.date===date&&dr.state){state=Object.assign(blank(date),dr.state);migrateFood(state)}}
   autoYesterday();
@@ -911,7 +966,7 @@ function saveLabel(){const e=entry((store('mr-history')||{})[state.today]);docum
 }
 document.getElementById('save').onclick=()=>{
   const h=store('mr-history')||{}; const r=compute(state); const prev=entry(h[state.today]);
-  const dv=derive(state), e=JSON.parse(JSON.stringify(state)); ['sleepH','bedtime','workH','workEnd','load','legLoad','trainT','carbG','protG','water','alcN'].forEach(k=>e[k]=dv[k]); Object.assign(e,{total:r.total,md:r.md}); AREAS.forEach(a=>e['p_'+a.k]=Math.round(r.parts[a.k]));
+  const dv=derive(state), e=JSON.parse(JSON.stringify(state)); ['sleepH','bedtime','workH','workEnd','load','legLoad','trainT','carbG','protG','water','alcN'].forEach(k=>e[k]=dv[k]); e.acwrRatio=dv.acwr&&dv.acwr.ok?dv.acwr.ratio:''; Object.assign(e,{total:r.total,md:r.md}); AREAS.forEach(a=>e['p_'+a.k]=Math.round(r.parts[a.k]));
   ['rating','minutes'].forEach(k=>{if(prev[k]!=null)e[k]=prev[k]});
   delete e.touched; h[state.today]=e; store('mr-history',h); const bl=blendScore(r.total); if(bl){h[state.today].readiness=Math.min(bl.v,r.cap); store('mr-history',h);}
   renderChart(); saveLabel(); const t=document.getElementById('toast'); t.style.color='var(--good)'; t.textContent=`Giornata del ${state.today.split('-').reverse().join('/')} salvata.`; setTimeout(()=>t.textContent='',3000);
@@ -946,10 +1001,10 @@ function corr(a){
 }
 function buildCsv(){
   const h=store('mr-history')||{}; const dates=Object.keys(h).sort();
-  const F=Object.values(SCHEMA).flat().filter(f=>f.type!=='info'&&f.type!=='picker').map(f=>f.id), D=['sleepH','bedtime','workH','workEnd','load','legLoad','trainT','carbG','protG','water','alcN'];
-  const cols=['data','data_partita','orario_partita','meteo','md','prontezza_giorno','prontezza_ponderata',...AREAS.map(a=>'p_'+a.k),...F,...D,...MEALS.map(([m])=>m),'voto_partita','minuti_giocati'];
+  const F=Object.values(SCHEMA).flat().filter(f=>f.type!=='info'&&f.type!=='picker').map(f=>f.id), D=['sleepH','bedtime','workH','workEnd','load','legLoad','trainT','carbG','protG','water','alcN','acwrRatio','wMeasured'];
+  const cols=['data','data_partita','orario_partita','meteo','campo','md','prontezza_giorno','prontezza_ponderata',...AREAS.map(a=>'p_'+a.k),...F,...D,...MEALS.map(([m])=>m),'voto_partita','minuti_giocati'];
   const rows=dates.map(d=>{const e=entry(h[d]);
-    return [d,e.matchDate??'',e.kickoff??'',['fresco','mite','caldo'][e.heat??1],e.md??'',e.total??'',e.readiness??'',...AREAS.map(a=>e['p_'+a.k]??''),...F.map(k=>e[k]??''),...D.map(k=>e[k]??''),...MEALS.map(([m])=>foodList(e,m)),e.rating??'',e.minutes??'']
+    return [d,e.matchDate??'',e.kickoff??'',['fresco','mite','caldo'][e.heat??1],['erba','sintetico','terra'][e.pitch??0],e.md??'',e.total??'',e.readiness??'',...AREAS.map(a=>e['p_'+a.k]??''),...F.map(k=>e[k]??''),...D.map(k=>e[k]??''),...MEALS.map(([m])=>foodList(e,m)),e.rating??'',e.minutes??'']
       .map(v=>typeof v==='number'?String(v).replace('.',','):'"'+String(v).replace(/"/g,"'").replace(/[\r\n;]+/g,' ')+'"').join(';')});
   return [cols.join(';'),...rows].join('\n');
 }
